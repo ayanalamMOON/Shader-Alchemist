@@ -30,6 +30,14 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: packages/agent-core/pyproject.toml
+      - name: Verify API credential
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          if [ -z "$GOOGLE_API_KEY" ]; then
+            echo "Set the GOOGLE_API_KEY repository secret before running the benchmark suite." >&2
+            exit 1
+          fi
       - name: Install agent core
         run: uv sync --project packages/agent-core
       - name: Install WebGPU harness dependencies
@@ -38,15 +46,6 @@ jobs:
       - name: Build WebGPU harness
         working-directory: packages/webgpu-harness
         run: npm run build
-      - name: Verify API credential
-        if: ${{ !inputs.skip_harness }}
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: |
-          if [ -z "$GOOGLE_API_KEY" ]; then
-            echo "Set the GOOGLE_API_KEY repository secret or dispatch with skip_harness=true." >&2
-            exit 1
-          fi
       - name: Run reproducible benchmark manifest
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
