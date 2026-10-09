@@ -18,6 +18,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AGENT_PROJECT = ROOT / "packages" / "agent-core"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,7 +46,8 @@ def invoke_agent(workload: dict[str, Any], output: Path) -> dict[str, Any]:
     command = [
         "uv",
         "run",
-        "--active",
+        "--project",
+        str(AGENT_PROJECT),
         "shader-alchemist",
         "build",
         str(workload["prompt"]),
