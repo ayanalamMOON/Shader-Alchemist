@@ -4,7 +4,7 @@
 >
 > **Normative reference:** [WebGPU Shading Language (WGSL), Memory Layout and Address Space Layout Constraints](https://www.w3.org/TR/WGSL/).
 >
-> **Implementation principle:** Never assume that WGSL buffer layout is universally equivalent to GLSL \`std140\`, GLSL \`std430\`, a Rust/C struct layout, or the packing of a JavaScript object. Compute the layout from the WGSL type, its attributes, its address space, and the target's relevant limits/features.
+> **Implementation principle:** Never assume that WGSL buffer layout is universally equivalent to GLSL `std140`, GLSL `std430`, a Rust/C struct layout, or the packing of a JavaScript object. Compute the layout from the WGSL type, its attributes, its address space, and the target's relevant limits/features.
 
 ## 1. Why alignment is a correctness rule
 
@@ -14,7 +14,7 @@ A layout mismatch can produce plausible but incorrect values, broken transforms,
 
 ### 1.1 The host-to-shader contract
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     A["Logical values / MathSpec"] --> B["WGSL type and address space"]
     A --> C["Host-side encoder"]
@@ -28,7 +28,7 @@ flowchart LR
     I -->|Yes| J["Execute shader"]
     I -->|No| K["Reject or repair layout"]
     J --> L["Compare output with reference"]
-\`\`\`
+```
 
 The host encoder and shader declaration are two descriptions of the same memory contract. A valid shader alone does not prove that the host encoded the data correctly. Likewise, a correctly packed host buffer cannot make an invalid WGSL declaration valid.
 
@@ -48,14 +48,14 @@ All sizes and offsets below are measured in **bytes**, where one byte is eight b
 
 | Symbol | Meaning |
 |---|---|
-| \`AlignOf(T)\` | Natural alignment of WGSL type \`T\`. |
-| \`SizeOf(T)\` | WGSL memory size of type \`T\`, including any padding that is part of its size. |
-| \`AlignOfMember(S, i)\` | Effective alignment of member \`i\` in structure \`S\`, after applicable attributes. |
-| \`OffsetOfMember(S, i)\` | Byte offset of member \`i\` from the start of \`S\`. |
-| \`StrideOf(array<T>)\` | Distance in bytes between the starts of consecutive array elements. |
-| \`SizeOf(S)\` | Total rounded size of a structure \`S\`. |
-| \`AS\` | Address space, such as \`uniform\` or \`storage\`. |
-| \`RequiredAlignOf(T, AS)\` | Address-space-specific required alignment for type \`T\`. |
+| `AlignOf(T)` | Natural alignment of WGSL type `T`. |
+| `SizeOf(T)` | WGSL memory size of type `T`, including any padding that is part of its size. |
+| `AlignOfMember(S, i)` | Effective alignment of member `i` in structure `S`, after applicable attributes. |
+| `OffsetOfMember(S, i)` | Byte offset of member `i` from the start of `S`. |
+| `StrideOf(array<T>)` | Distance in bytes between the starts of consecutive array elements. |
+| `SizeOf(S)` | Total rounded size of a structure `S`. |
+| `AS` | Address space, such as `uniform` or `storage`. |
+| `RequiredAlignOf(T, AS)` | Address-space-specific required alignment for type `T`. |
 
 ### 2.1 Round-up to an alignment
 
@@ -71,7 +71,7 @@ For the power-of-two alignments used by WGSL types, an equivalent integer expres
 \operatorname{roundUp}(a,x)=(x+a-1)\ \&\ \sim(a-1)
 \]
 
-Use the bitwise form only when \`a\` is a positive power of two and the integer width cannot overflow. The ceiling form is the clearer specification-level definition.
+Use the bitwise form only when `a` is a positive power of two and the integer width cannot overflow. The ceiling form is the clearer specification-level definition.
 
 Examples:
 
@@ -101,35 +101,35 @@ Padding bytes are part of the layout, not useful application fields. The host en
 
 The following common host-shareable types have these natural alignment and size values under the WGSL memory-layout rules. Always validate the exact type against the current specification and implementation.
 
-| WGSL type | \`AlignOf(T)\` | \`SizeOf(T)\` | Notes |
+| WGSL type | `AlignOf(T)` | `SizeOf(T)` | Notes |
 |---|---:|---:|---|
-| \`i32\`, \`u32\`, \`f32\` | 4 | 4 | Scalar |
-| \`f16\` | 2 | 2 | Requires applicable shader/device support |
-| \`vec2<f32>\` | 8 | 8 | Two scalar components |
-| \`vec3<f32>\` | 16 | 12 | Alignment is 16, stored component size is 12 |
-| \`vec4<f32>\` | 16 | 16 | Four scalar components |
-| \`vec2<f16>\` | 4 | 4 | Two half-precision components |
-| \`vec3<f16>\` | 8 | 6 | Alignment is 8, component size is 6 |
-| \`vec4<f16>\` | 8 | 8 | Four half-precision components |
+| `i32`, `u32`, `f32` | 4 | 4 | Scalar |
+| `f16` | 2 | 2 | Requires applicable shader/device support |
+| `vec2<f32>` | 8 | 8 | Two scalar components |
+| `vec3<f32>` | 16 | 12 | Alignment is 16, stored component size is 12 |
+| `vec4<f32>` | 16 | 16 | Four scalar components |
+| `vec2<f16>` | 4 | 4 | Two half-precision components |
+| `vec3<f16>` | 8 | 6 | Alignment is 8, component size is 6 |
+| `vec4<f16>` | 8 | 8 | Four half-precision components |
 
 The table is not a license to infer every type's layout from its component count. In particular, matrices are laid out as columns, and arrays use a stride rather than merely the payload size of an element.
 
-### 3.1 The \`vec3<f32>\` rule
+### 3.1 The `vec3<f32>` rule
 
 A three-component 32-bit vector has a natural alignment of 16 bytes, but a size of 12 bytes. These are different properties.
 
-\`\`\`text
+```text
 vec3<f32>, starting at byte 0
 
 Byte:   0   1   2   3 | 4   5   6   7 | 8   9  10  11
         x   x   x   x | y   y   y   y | z   z   z   z
 Payload: 12 bytes
 Natural alignment: 16 bytes
-\`\`\`
+```
 
-The next member of a structure is placed using that next member's alignment and the current end cursor. Therefore a following \`f32\` can occupy byte offset 12 in a storage-layout structure after a \`vec3<f32>\`, but a following \`vec4<f32>\` must begin at a 16-byte boundary. In arrays, the vector's stride is rounded up to a multiple of its alignment, so an array of \`vec3<f32>\` has a 16-byte stride.
+The next member of a structure is placed using that next member's alignment and the current end cursor. Therefore a following `f32` can occupy byte offset 12 in a storage-layout structure after a `vec3<f32>`, but a following `vec4<f32>` must begin at a 16-byte boundary. In arrays, the vector's stride is rounded up to a multiple of its alignment, so an array of `vec3<f32>` has a 16-byte stride.
 
-This distinction is a frequent source of host/shader mismatches. Do not universally add four bytes immediately after every \`vec3\`; compute the next offset from the next member's alignment and the enclosing address-space constraints.
+This distinction is a frequent source of host/shader mismatches. Do not universally add four bytes immediately after every `vec3`; compute the next offset from the next member's alignment and the enclosing address-space constraints.
 
 ### 3.2 Arrays
 
@@ -151,10 +151,10 @@ Examples in a storage-layout context:
 
 | Element type | Element size | Element alignment | Stride |
 |---|---:|---:|---:|
-| \`f32\` | 4 | 4 | 4 |
-| \`vec2<f32>\` | 8 | 8 | 8 |
-| \`vec3<f32>\` | 12 | 16 | 16 |
-| \`vec4<f32>\` | 16 | 16 | 16 |
+| `f32` | 4 | 4 | 4 |
+| `vec2<f32>` | 8 | 8 | 8 |
+| `vec3<f32>` | 12 | 16 | 16 |
+| `vec4<f32>` | 16 | 16 | 16 |
 
 An element's payload size is not always its array stride. Indexing an array uses the stride:
 
@@ -164,7 +164,7 @@ An element's payload size is not always its array stride. Indexing an array uses
 
 ### 3.3 Matrices
 
-WGSL matrices are column-major. A matrix \`matCxR<T>\` contains \(C\) column vectors, each with \(R\) components. Its memory layout follows the layout of an array of those column vectors.
+WGSL matrices are column-major. A matrix `matCxR<T>` contains \(C\) column vectors, each with \(R\) components. Its memory layout follows the layout of an array of those column vectors.
 
 \[
 \operatorname{AlignOf}(\operatorname{mat}_{C\times R}<T>)=
@@ -184,9 +184,9 @@ WGSL matrices are column-major. A matrix \`matCxR<T>\` contains \(C\) column vec
 C\cdot\operatorname{Stride}_{column}
 \]
 
-For example, \`mat3x3<f32>\` has three \`vec3<f32>\` columns. Each column occupies a 16-byte stride, so the matrix has a 48-byte footprint, not a tightly packed 36-byte footprint.
+For example, `mat3x3<f32>` has three `vec3<f32>` columns. Each column occupies a 16-byte stride, so the matrix has a 48-byte footprint, not a tightly packed 36-byte footprint.
 
-\`\`\`mermaid
+```mermaid
 flowchart TB
     M["mat3x3<f32>: 48 bytes"] --> C0["Column 0: bytes 0-15"]
     M --> C1["Column 1: bytes 16-31"]
@@ -194,7 +194,7 @@ flowchart TB
     C0 --> V0["x, y, z at 0, 4, 8; padding 12-15"]
     C1 --> V1["x, y, z at 16, 20, 24; padding 28-31"]
     C2 --> V2["x, y, z at 32, 36, 40; padding 44-47"]
-\`\`\`
+```
 
 The host encoder must also agree on matrix orientation. A transposed interpretation is a semantic mismatch even if the byte count is correct.
 
@@ -228,7 +228,7 @@ This describes the core recursive layout calculation. Address-space rules and me
 
 ### 4.1 Worked example: storage structure with a vector
 
-\`\`\`wgsl
+```wgsl
 struct Particle {
     position: vec3<f32>,
     mass: f32,
@@ -237,32 +237,32 @@ struct Particle {
 }
 @group(0) @binding(0)
 var<storage, read_write> particles: array<Particle>;
-\`\`\`
+```
 
 Under the storage layout rules:
 
 | Member | Alignment | Size | Offset | End |
 |---|---:|---:|---:|---:|
-| \`position\` | 16 | 12 | 0 | 12 |
-| \`mass\` | 4 | 4 | 12 | 16 |
-| \`velocity\` | 16 | 12 | 16 | 28 |
-| \`id\` | 4 | 4 | 28 | 32 |
+| `position` | 16 | 12 | 0 | 12 |
+| `mass` | 4 | 4 | 12 | 16 |
+| `velocity` | 16 | 12 | 16 | 28 |
+| `id` | 4 | 4 | 28 | 32 |
 
 The structure alignment is 16 bytes and its size is 32 bytes. Each array element begins 32 bytes after the preceding element.
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     subgraph P["Particle: 32 bytes"]
       direction LR
       A["position\\n0-11"] --- B["mass\\n12-15"] --- C["velocity\\n16-27"] --- D["id\\n28-31"]
     end
-\`\`\`
+```
 
-Notice why a blanket “every \`vec3\` consumes 16 bytes” rule is misleading: the \`position\` member's next \`f32\` fits into its fourth 4-byte slot in this storage-layout example. The \`velocity\` member is followed by \`id\`, which likewise occupies the final four bytes. The array stride is still 32 bytes because the full structure size is 32.
+Notice why a blanket “every `vec3` consumes 16 bytes” rule is misleading: the `position` member's next `f32` fits into its fourth 4-byte slot in this storage-layout example. The `velocity` member is followed by `id`, which likewise occupies the final four bytes. The array stride is still 32 bytes because the full structure size is 32.
 
 ## 5. Address spaces: storage versus uniform
 
-The WGSL type layout and address-space constraints are related but not interchangeable. A structure that is valid in \`storage\` is not automatically valid in \`uniform\`.
+The WGSL type layout and address-space constraints are related but not interchangeable. A structure that is valid in `storage` is not automatically valid in `uniform`.
 
 ### 5.1 Storage buffers
 
@@ -279,14 +279,14 @@ For an array, its stride must satisfy the corresponding element alignment requir
 
 ### 5.2 Uniform buffers
 
-Uniform buffers have additional layout constraints. For broad compatibility, Shader Alchemist should validate uniform layouts against the conservative uniform-buffer rules unless the selected device explicitly supports and enables the relevant WGSL feature (currently named \`uniform_buffer_standard_layout\` in the WGSL specification).
+Uniform buffers have additional layout constraints. For broad compatibility, Shader Alchemist should validate uniform layouts against the conservative uniform-buffer rules unless the selected device explicitly supports and enables the relevant WGSL feature (currently named `uniform_buffer_standard_layout` in the WGSL specification).
 
 Without that feature, two important constraints apply:
 
 1. Array element strides in uniform buffers must be multiples of 16 bytes.
-2. When a structure-typed member is followed by another member, the next member must be placed at least \`roundUp(16, SizeOf(nested-struct))\` bytes after the start of that nested structure member.
+2. When a structure-typed member is followed by another member, the next member must be placed at least `roundUp(16, SizeOf(nested-struct))` bytes after the start of that nested structure member.
 
-These are additional to the usual alignment and offset rules. They are not the same thing as saying every field in every uniform buffer is simply laid out according to GLSL \`std140\`.
+These are additional to the usual alignment and offset rules. They are not the same thing as saying every field in every uniform buffer is simply laid out according to GLSL `std140`.
 
 For a uniform array element \(T\), under the conservative rule:
 
@@ -304,11 +304,11 @@ When the feature is enabled, use the rules in the WGSL specification for that fe
 
 ### 5.3 Uniform-array example
 
-A tightly packed array of \`f32\` values has a four-byte stride under ordinary array layout. That stride does not satisfy the conservative uniform-buffer array-stride rule.
+A tightly packed array of `f32` values has a four-byte stride under ordinary array layout. That stride does not satisfy the conservative uniform-buffer array-stride rule.
 
 A wrapper with a 16-byte member size can establish a 16-byte stride:
 
-\`\`\`wgsl
+```wgsl
 struct UniformF32 {
     @size(16) value: f32,
 }
@@ -319,15 +319,15 @@ struct Parameters {
 
 @group(0) @binding(0)
 var<uniform> params: Parameters;
-\`\`\`
+```
 
-Each \`value\` is at the beginning of a 16-byte element; the remaining bytes are padding. This is a correctness-oriented layout, not automatically the most bandwidth-efficient representation. If a packed sequence is required, consider a storage buffer when its semantics and resource constraints fit the workload.
+Each `value` is at the beginning of a 16-byte element; the remaining bytes are padding. This is a correctness-oriented layout, not automatically the most bandwidth-efficient representation. If a packed sequence is required, consider a storage buffer when its semantics and resource constraints fit the workload.
 
 ### 5.4 Nested uniform structure example
 
 Under the conservative uniform-buffer rules, a nested structure may need a 16-byte-rounded spacing before a following member. An otherwise plausible declaration can fail validation:
 
-\`\`\`wgsl
+```wgsl
 struct Inner {
     x: f32,
 }
@@ -336,32 +336,32 @@ struct InvalidUniform {
     inner: Inner,
     y: f32, // Not enough spacing under conservative uniform rules.
 }
-\`\`\`
+```
 
 One explicit way to express the required next-member alignment is:
 
-\`\`\`wgsl
+```wgsl
 struct ValidUniform {
     inner: Inner,
     @align(16) y: f32,
 }
-\`\`\`
+```
 
 The actual layout must still be calculated and checked. An attribute should not be added mechanically without checking its effect on offsets, structure size, host encoding, and the selected device feature set.
 
 ## 6. WGSL attributes that affect layout
 
-### 6.1 \`@align(n)\`
+### 6.1 `@align(n)`
 
-The \`@align(n)\` attribute applies to a structure member and increases or constrains that member's effective alignment. It cannot be used as a casual substitute for understanding the type's natural alignment. The requested value must satisfy the WGSL rules, including the required relationship to the member type's alignment for the relevant address space.
+The `@align(n)` attribute applies to a structure member and increases or constrains that member's effective alignment. It cannot be used as a casual substitute for understanding the type's natural alignment. The requested value must satisfy the WGSL rules, including the required relationship to the member type's alignment for the relevant address space.
 
 A member's placement is still determined by the normal offset calculation using the effective alignment.
 
-### 6.2 \`@size(n)\`
+### 6.2 `@size(n)`
 
-The \`@size(n)\` attribute on a structure member establishes a minimum member size of \(n\) bytes, subject to WGSL validity rules. It can deliberately create padding and, for arrays of structures with that member, can affect the resulting element stride.
+The `@size(n)` attribute on a structure member establishes a minimum member size of \(n\) bytes, subject to WGSL validity rules. It can deliberately create padding and, for arrays of structures with that member, can affect the resulting element stride.
 
-\`@align\` controls where a member may start; \`@size\` controls how much space that member reserves. They solve different problems.
+`@align` controls where a member may start; `@size` controls how much space that member reserves. They solve different problems.
 
 ### 6.3 Attributes are part of the interface
 
@@ -371,7 +371,7 @@ The layout calculator must preserve explicit attributes in the schema and genera
 
 Correct internal struct layout does not guarantee that a buffer binding is valid. WebGPU has separate device limits governing the alignment of binding offsets, especially for dynamic offsets.
 
-For a dynamic uniform-buffer offset, validate against the selected device's \`minUniformBufferOffsetAlignment\`. For a dynamic storage-buffer offset, validate against \`minStorageBufferOffsetAlignment\`. Query the device limits rather than hardcoding one assumed value.
+For a dynamic uniform-buffer offset, validate against the selected device's `minUniformBufferOffsetAlignment`. For a dynamic storage-buffer offset, validate against `minStorageBufferOffsetAlignment`. Query the device limits rather than hardcoding one assumed value.
 
 For binding offset \(o\) and required device alignment \(A\):
 
@@ -379,9 +379,9 @@ For binding offset \(o\) and required device alignment \(A\):
 o\bmod A=0
 \]
 
-Also validate the binding's effective range against the buffer size and the resource binding's size constraints. Do not confuse this device-level binding alignment with \`AlignOf(T)\` or a struct member's offset.
+Also validate the binding's effective range against the buffer size and the resource binding's size constraints. Do not confuse this device-level binding alignment with `AlignOf(T)` or a struct member's offset.
 
-\`\`\`mermaid
+```mermaid
 flowchart TD
     A["WGSL type layout valid?"] --> B{"Yes"}
     B -->|No| X["Reject shader/layout"]
@@ -391,7 +391,7 @@ flowchart TD
     E --> F{"All checks pass?"}
     F -->|No| Y["Reject binding or repack"]
     F -->|Yes| G["Create bind group and validate pipeline"]
-\`\`\`
+```
 
 ## 8. Host-side packing requirements
 
@@ -399,13 +399,13 @@ The CPU representation must be serialized to the exact byte offsets and strides 
 
 ### 8.1 JavaScript and TypeScript
 
-JavaScript objects are logical objects, not GPU buffer layouts. Passing an object such as \`{ position: [x, y, z], mass: m }\` does not make its in-memory object representation suitable for a GPU buffer. Build an \`ArrayBuffer\` or \`TypedArray\` payload deliberately, and write values at offsets computed from the layout contract.
+JavaScript objects are logical objects, not GPU buffer layouts. Passing an object such as `{ position: [x, y, z], mass: m }` does not make its in-memory object representation suitable for a GPU buffer. Build an `ArrayBuffer` or `TypedArray` payload deliberately, and write values at offsets computed from the layout contract.
 
-Use \`DataView\` or typed arrays with documented offsets. If using typed arrays, remember that their indexing is based on their own element type and byte offset. Ensure the backing buffer is large enough and any byte-offset requirements are satisfied.
+Use `DataView` or typed arrays with documented offsets. If using typed arrays, remember that their indexing is based on their own element type and byte offset. Ensure the backing buffer is large enough and any byte-offset requirements are satisfied.
 
 ### 8.2 Rust and other systems languages
 
-Do not assume that a Rust \`struct\` with \`repr(C)\` automatically matches every WGSL layout. Language ABI layout, padding, field order, vector types, matrix types, and address-space-specific rules still need to be checked. Prefer an explicit serialization layer or a carefully verified GPU data type representation.
+Do not assume that a Rust `struct` with `repr(C)` automatically matches every WGSL layout. Language ABI layout, padding, field order, vector types, matrix types, and address-space-specific rules still need to be checked. Prefer an explicit serialization layer or a carefully verified GPU data type representation.
 
 ### 8.3 Host packing invariants
 
@@ -453,7 +453,7 @@ Do not infer that a buffer is safe merely because its byte length is divisible b
 
 The layout calculator should be deterministic, inspectable, and independent from the WGSL writer's assumptions.
 
-\`\`\`mermaid
+```mermaid
 flowchart TD
     A["Parse WGSL / MathSpec types"] --> B["Resolve scalar, vector, matrix, array, struct types"]
     B --> C["Resolve address space and device features"]
@@ -467,13 +467,13 @@ flowchart TD
     J -->|No| K["Emit precise diagnostic and candidate repair"]
     J -->|Yes| L["Emit layout manifest"]
     L --> M["Cross-check host encoder and WebGPU harness"]
-\`\`\`
+```
 
 ### 10.1 Required output manifest
 
 For each buffer type, produce machine-readable metadata similar to the following illustrative JSON. The values must be generated from the actual type, not copied from this example.
 
-\`\`\`json
+```json
 {
   "type": "Particle",
   "addressSpace": "storage",
@@ -492,7 +492,7 @@ For each buffer type, produce machine-readable metadata similar to the following
     "deviceBindingLimitsVerified": false
   }
 }
-\`\`\`
+```
 
 The final two flags should not be marked true until the host encoder and actual device/binding configuration have been tested. Static WGSL layout validation is not proof of runtime correctness.
 
@@ -509,7 +509,7 @@ A useful diagnostic states:
 
 Example:
 
-\`\`\`text
+```text
 Layout error: Parameters.samples
   Address space: uniform
   Computed array stride: 4 bytes
@@ -517,7 +517,7 @@ Layout error: Parameters.samples
   Cause: array<f32, 8> uses a 4-byte element stride
   Candidate: use a valid 16-byte wrapper or redesign the data as a storage buffer
   Follow-up: update host offsets and rerun layout + device validation
-\`\`\`
+```
 
 A repair must be treated as a change to the data contract. It is not sufficient to make the shader compile while leaving the host-side bytes unchanged.
 
@@ -527,7 +527,7 @@ Use layered checks. A single successful shader compilation is not enough.
 
 | Layer | Checks | Failure examples |
 |---|---|---|
-| Type/layout calculation | Natural alignments, member offsets, final sizes, array and matrix strides | Wrong \`vec3\` handling; missing struct tail padding |
+| Type/layout calculation | Natural alignments, member offsets, final sizes, array and matrix strides | Wrong `vec3` handling; missing struct tail padding |
 | Address-space validation | Uniform-specific constraints, storage constraints, nested types | Invalid uniform array stride |
 | Host serialization | Actual encoded offsets, byte length, matrix orientation | Host packs fields consecutively |
 | Resource binding | Dynamic offset alignment, binding range, buffer size, device limits | Misaligned dynamic offset |
@@ -538,12 +538,12 @@ Use layered checks. A single successful shader compilation is not enough.
 ### 11.1 Essential test cases
 
 1. Scalars and scalar arrays in storage buffers.
-2. \`vec2\`, \`vec3\`, and \`vec4\` fields, including a scalar immediately after a \`vec3\`.
-3. Arrays of \`vec3\` and arrays of structures containing \`vec3\`.
+2. `vec2`, `vec3`, and `vec4` fields, including a scalar immediately after a `vec3`.
+3. Arrays of `vec3` and arrays of structures containing `vec3`.
 4. Rectangular and square matrices, verifying column stride and orientation.
 5. Nested structures, including structures used in uniform buffers.
 6. Uniform arrays under both conservative baseline rules and feature-enabled rules, where supported.
-7. \`@align\` and \`@size\` attributes at valid and invalid values.
+7. `@align` and `@size` attributes at valid and invalid values.
 8. Runtime-sized storage arrays at zero, one, and multiple elements, including partial workgroups.
 9. Binding offsets that are correctly and incorrectly aligned to queried device limits.
 10. Host byte payloads that are deliberately malformed to confirm the validator catches the mismatch.
@@ -574,7 +574,7 @@ and the relative increase over the compact representation is:
 
 Use these equations only when both strides are valid for the same semantic representation and address-space rules. Never remove required padding to reduce bandwidth. Instead, choose a valid type/address-space design and measure it on the target device.
 
-For example, an array of \`vec3<f32>\` with a 16-byte stride spends 4 bytes per element on padding relative to its 12-byte component payload, a 33.3% increase over the payload bytes. This does not mean the representation should be manually packed to 12 bytes: shader-side array indexing and the applicable WGSL layout rules determine the valid stride.
+For example, an array of `vec3<f32>` with a 16-byte stride spends 4 bytes per element on padding relative to its 12-byte component payload, a 33.3% increase over the payload bytes. This does not mean the representation should be manually packed to 12 bytes: shader-side array indexing and the applicable WGSL layout rules determine the valid stride.
 
 Optimization should compare equivalent workloads, include buffer upload/download costs where relevant, and preserve numerical tolerances and output semantics.
 
@@ -583,13 +583,13 @@ Optimization should compare equivalent workloads, include buffer upload/download
 The Math Architect, WGSL Writer, Performance Evaluator, and artifact assembler must share one layout contract.
 
 - **Math Architect:** identifies the logical data schema, scalar precision, dimensions, indexing domain, and required host/shader interchange.
-- **WGSL Writer:** emits types and address-space declarations consistent with the selected layout manifest. It must not invent offsets based on \`std140\` or \`std430\` assumptions.
+- **WGSL Writer:** emits types and address-space declarations consistent with the selected layout manifest. It must not invent offsets based on `std140` or `std430` assumptions.
 - **Layout validator:** calculates offsets, sizes, and strides from WGSL rules and verifies address-space constraints.
 - **Host encoder:** consumes the same manifest or an independently checked equivalent when writing bytes.
 - **Performance Evaluator:** evaluates only layouts that passed correctness and binding validation, and records padding/footprint details with measurements.
 - **Artifact assembler:** packages the WGSL, schema, layout manifest, device features/limits, test results, and benchmark metadata together.
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     MA["Math Architect"] --> SC["Typed data contract"]
     SC --> WW["WGSL Writer"]
@@ -603,7 +603,7 @@ flowchart LR
     LV -. "layout mismatch" .-> WW
     HV -. "packing mismatch" .-> HE
     RV -. "semantic mismatch" .-> MA
-\`\`\`
+```
 
 A layout repair must trigger revalidation of the shader, host encoding, bindings, and correctness tests. If a change affects stride or offsets, prior benchmark results are not directly comparable unless the changed data representation is explicitly recorded.
 
@@ -615,7 +615,7 @@ A generated buffer layout is considered **validated** only when all applicable c
 - [ ] Every structure member has a deterministic byte offset.
 - [ ] Every array and matrix has a verified stride.
 - [ ] Structure size includes required tail padding.
-- [ ] \`@align\` and \`@size\` attributes are included in the calculation.
+- [ ] `@align` and `@size` attributes are included in the calculation.
 - [ ] The selected address space's constraints are satisfied.
 - [ ] Uniform-buffer feature assumptions are explicit and supported by the device.
 - [ ] Buffer binding offsets, sizes, and dynamic-offset limits are valid.
