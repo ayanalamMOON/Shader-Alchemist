@@ -1,0 +1,19 @@
+{
+  "name": "{{ package_name | default(project_name | default("shader-alchemist-generated")) | lower | replace(" ", "-") }}",
+  "version": "{{ version | default("0.1.0") }}",
+  "private": true,
+  "type": "module",
+  "description": "{{ description | default("Generated WebGPU compute application") }}",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/webgpu_app.js",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@webgpu/types": "{{ webgpu_types_version | default("^0.1.51") }}"
+  },
+  "devDependencies": {
+    "@types/node": "{{ node_types_version | default("^22.10.0") }}",
+    "typescript": "{{ typescript_version | default("^5.7.2") }}"
+  }
+}

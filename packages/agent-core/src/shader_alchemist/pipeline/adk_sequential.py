@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from ..agents import AdkShaderAgents, MathArchitect, PerformanceEvaluator, WGSLWriter
 from ..schemas.artifact import ShaderArtifact
 from ..schemas.state import PipelineStatus, ShaderAlchemistState
@@ -35,6 +37,7 @@ class AdkSequentialPipeline:
         user_prompt: str,
         *,
         on_iteration=None,
+        cancel_event: asyncio.Event | None = None,
     ) -> ShaderAlchemistState:
         state = ShaderAlchemistState(
             user_prompt=user_prompt,
@@ -43,6 +46,20 @@ class AdkSequentialPipeline:
         )
         manager = StateManager(state)
         try:
+            async def check_cancelled() -> bool:
+                if cancel_event is not None and cancel_event.is_set():
+                    state.last_error = "pipeline cancelled"
+                    state.metadata["cancelled"] = True
+                    if state.status not in {
+                        PipelineStatus.PASSED,
+                        PipelineStatus.FAILED,
+                    }:
+                        manager.transition(PipelineStatus.FAILED, error=state.last_error)
+                    return True
+                return False
+
+            if await check_cancelled():
+                return state
             state.math_spec = await self.agents.create_math_spec(
                 prompt=user_prompt,
                 rendered_instruction=self.architect.render_prompt(
@@ -52,6 +69,8 @@ class AdkSequentialPipeline:
             )
             manager.transition(PipelineStatus.SPECIFIED)
             while True:
+                if await check_cancelled():
+                    return state
                 writer_prompt = (
                     "Produce a ShaderArtifact JSON for this MathSpec. "
                     "Preserve every binding and entry point exactly.\n\n"
@@ -117,7 +136,11 @@ class AdkSequentialPipeline:
                     )
                 state.record_evaluation(report)
                 if on_iteration:
-                    on_iteration(state)
+                    callback_result = on_iteration(state)
+                    if hasattr(callback_result, "__await__"):
+                        await callback_result
+                if await check_cancelled():
+                    return state
                 if self.loop.should_stop(report, state.current_iteration):
                     manager.transition(
                         PipelineStatus.PASSED if report.pass_status else PipelineStatus.FAILED

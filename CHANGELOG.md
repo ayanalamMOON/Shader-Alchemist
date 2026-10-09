@@ -6,6 +6,50 @@ All notable changes to Shader Alchemist are documented here.
 
 ### Added
 
+#### Production runtime hardening
+
+- Added ADK invocation telemetry callbacks with started, completed, and failed events,
+  attempt numbers, durations, and error metadata.
+- Added jittered exponential retry backoff with configurable base and maximum delays.
+- Added cooperative cancellation checks and asynchronous iteration callbacks to the ADK
+  sequential pipeline.
+- Added WebGPU preflight validation with structured diagnostic codes for malformed artifacts,
+  duplicate bindings, invalid dispatches, budget violations, invalid buffer declarations,
+  unsupported output bindings, and invalid iteration settings.
+- Added explicit WebGPU execution phases in harness results, including preflight,
+  device-request, pipeline, execution, and host failures.
+- Added uncaptured validation error collection around warm-up and measured dispatches,
+  bounded buffer allocation accounting, and guaranteed resource cleanup.
+- Added focused harness tests for preflight rejection behavior.
+
+#### Live examples and benchmarks
+
+- Added a complete vector-add live example with:
+  - a reference WGSL kernel;
+  - dispatch and tail-guard expectations;
+  - agent generation commands;
+  - acceptance checks.
+- Added a 3D spatial-hash example with:
+  - a bounded `hash_particles` WGSL pass;
+  - CPU cell-key oracle;
+  - boundary and tail-case guidance;
+  - workload scaling recommendations.
+- Added an SPH density example with:
+  - a poly6 all-pairs reference kernel;
+  - floating-point tolerance requirements;
+  - CPU numerical oracle;
+  - clustered and boundary input guidance.
+- Added `benchmarks/manifest.json` with stable workload IDs, prompts, expected dispatches,
+  correctness modes, tolerances, features, safety limits, and reproducibility defaults.
+- Added `benchmarks/README.md` with generation-only and real WebGPU harness benchmark commands.
+- Replaced the benchmark placeholder with `scripts/benchmark_all_examples.py`, which:
+  - resolves paths from the repository root;
+  - invokes the installed agent CLI;
+  - preserves per-workload evidence;
+  - optionally invokes the WebGPU harness;
+  - writes a machine-readable `summary.json`;
+  - reports failures without silently converting them to successes.
+
 #### Agent-core pipeline
 
 - Added validated Pydantic contracts for:
@@ -240,4 +284,3 @@ npm test
 - The harness currently accepts generic buffer payloads; algorithm-specific reference
   input generation and output-oracle wiring should be expanded for each kernel family.
 - Browser GPU availability and timestamp-query support remain platform-dependent.
-

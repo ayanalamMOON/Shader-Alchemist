@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "suite": "shader-alchemist-core",
+  "description": "Reproducible correctness-first workloads for agent and WebGPU harness evaluation.",
+  "defaults": {
+    "warmup_iterations": 2,
+    "measured_iterations": 10,
+    "max_dispatch_invocations": 16777216,
+    "max_buffer_bytes": 268435456,
+    "target_budget_ms": 2.0,
+    "seed": 1337
+  },
+  "workloads": [
+    {
+      "id": "vector-add-1025",
+      "category": "elementwise",
+      "prompt": "add two vectors with 1025 elements",
+      "algorithm": "vector_add",
+      "elements": 1025,
+      "workgroup_size": 64,
+      "dispatch": [17, 1, 1],
+      "correctness": {
+        "kind": "exact",
+        "oracle": "c[i] = a[i] + b[i]"
+      },
+      "required_features": []
+    },
+    {
+      "id": "spatial-hash-100000",
+      "category": "particle",
+      "prompt": "create a bounds-safe 3D spatial hash for 100000 particles with a 256 cubed grid and cell size 0.25",
+      "algorithm": "spatial_hash_3d",
+      "elements": 100000,
+      "workgroup_size": 64,
+      "dispatch": [1563, 1, 1],
+      "correctness": {
+        "kind": "exact",
+        "oracle": "clamped integer cell key"
+      },
+      "required_features": []
+    },
+    {
+      "id": "sph-density-4096",
+      "category": "simulation",
+      "prompt": "create a bounds-safe SPH density compute shader using the poly6 kernel for 4096 particles",
+      "algorithm": "sph_density_all_pairs",
+      "elements": 4096,
+      "workgroup_size": 64,
+      "dispatch": [64, 1, 1],
+      "correctness": {
+        "kind": "numeric",
+        "absolute_tolerance": 0.00001,
+        "relative_tolerance": 0.0001,
+        "oracle": "CPU poly6 density reference"
+      },
+      "required_features": []
+    }
+  ]
+}

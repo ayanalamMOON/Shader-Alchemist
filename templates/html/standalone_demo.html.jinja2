@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title | default("Shader Alchemist WebGPU Demo") }}</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; background: #111827; color: #e5e7eb; }
+    button { padding: .65rem 1rem; border: 0; border-radius: .4rem; background: #2563eb; color: white; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    pre { min-height: 10rem; padding: 1rem; overflow: auto; border-radius: .4rem; background: #030712; white-space: pre-wrap; }
+    .success { color: #86efac; } .error { color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{{ title | default("Shader Alchemist WebGPU Demo") }}</h1>
+    <p>{{ description | default("Compile and dispatch the generated compute shader in this browser.") }}</p>
+    <button id="run" type="button">Run shader</button>
+    <p id="status" role="status">Ready.</p>
+    <pre id="output"></pre>
+  </main>
+  <script type="module">
+    const shaderCode = {{ wgsl_code | default(shader_source | default("@compute @workgroup_size(1) fn main() {}")) | tojson }};
+    const entryPoint = {{ entry_point | default("main") | tojson }};
+    const dispatchSize = [
+      {{ dispatch_x | default(1) }},
+      {{ dispatch_y | default(1) }},
+      {{ dispatch_z | default(1) }}
+    ];
+    const status = document.querySelector("#status");
+    const output = document.querySelector("#output");
+    const button = document.querySelector("#run");
+
+    async function run() {
+      button.disabled = true;
+      status.className = "";
+      status.textContent = "Requesting WebGPU device...";
+      try {
+        if (!navigator.gpu) throw new Error("WebGPU is unavailable in this browser.");
+        const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+        if (!adapter) throw new Error("No WebGPU adapter was found.");
+        const device = await adapter.requestDevice();
+        const module = device.createShaderModule({ code: shaderCode });
+        const info = await module.getCompilationInfo();
+        const errors = info.messages.filter((message) => message.type === "error");
+        if (errors.length) throw new Error(errors.map((message) => message.message).join("\n"));
+        const layout = device.createBindGroupLayout({ entries: [] });
+        const pipeline = device.createComputePipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+          compute: { module, entryPoint }
+        });
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginComputePass();
+        pass.setPipeline(pipeline);
+        pass.setBindGroup(0, device.createBindGroup({ layout, entries: [] }));
+        pass.dispatchWorkgroups(...dispatchSize);
+        pass.end();
+        const start = performance.now();
+        device.queue.submit([encoder.finish()]);
+        await device.queue.onSubmittedWorkDone();
+        const elapsed = performance.now() - start;
+        status.className = "success";
+        status.textContent = "Completed successfully.";
+        output.textContent = JSON.stringify({ entryPoint, dispatchSize, elapsedMs: elapsed }, null, 2);
+        device.destroy();
+      } catch (error) {
+        status.className = "error";
+        status.textContent = "Execution failed.";
+        output.textContent = error instanceof Error ? error.message : String(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+    button.addEventListener("click", () => void run());
+  </script>
+</body>
+</html>

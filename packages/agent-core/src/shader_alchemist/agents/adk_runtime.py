@@ -9,8 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
+import time
 from collections.abc import AsyncIterator
-from typing import Any, TypeVar
+from typing import Any, Callable, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -30,6 +32,9 @@ class AdkUnavailableError(RuntimeError):
 
 class AdkInvocationError(RuntimeError):
     """Raised when an ADK invocation fails or returns invalid structured data."""
+
+
+InvocationObserver = Callable[[dict[str, Any]], None]
 
 
 def _load_adk() -> tuple[Any, Any, Any, Any, Any, Any]:
@@ -65,8 +70,19 @@ class AdkStructuredRuntime:
     invocation. This avoids cross-agent prompt leakage while retaining traceable session IDs.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        observer: InvocationObserver | None = None,
+    ) -> None:
         self.settings = settings or Settings.from_environment()
+        if (
+            self.settings.adk_retry_max_delay_seconds
+            < self.settings.adk_retry_base_delay_seconds
+        ):
+            raise ValueError("ADK retry max delay must be >= base delay")
+        self.observer = observer
         (
             self._llm_agent,
             self._run_config,
@@ -125,6 +141,14 @@ class AdkStructuredRuntime:
         )
         last_error: Exception | None = None
         for attempt in range(self.settings.adk_max_retries + 1):
+            started = time.monotonic()
+            self._observe(
+                "started",
+                name=name,
+                attempt=attempt + 1,
+                max_attempts=self.settings.adk_max_retries + 1,
+                session_id=session_id,
+            )
             try:
                 async with asyncio.timeout(self.settings.adk_timeout_seconds):
                     text = ""
@@ -142,9 +166,19 @@ class AdkStructuredRuntime:
                             final_output = state_delta["structured_output"]
                     if final_output is not None:
                         if isinstance(final_output, str):
-                            return self._parse_response(final_output, output_schema)
-                        return output_schema.model_validate(final_output)
-                    return self._parse_response(text, output_schema)
+                            result = self._parse_response(final_output, output_schema)
+                        else:
+                            result = output_schema.model_validate(final_output)
+                    else:
+                        result = self._parse_response(text, output_schema)
+                    self._observe(
+                        "completed",
+                        name=name,
+                        attempt=attempt + 1,
+                        duration_ms=round((time.monotonic() - started) * 1000, 2),
+                        session_id=session_id,
+                    )
+                    return result
             except (
                 TimeoutError,
                 ValidationError,
@@ -154,12 +188,33 @@ class AdkStructuredRuntime:
                 ValueError,
             ) as exc:
                 last_error = exc
+                self._observe(
+                    "failed",
+                    name=name,
+                    attempt=attempt + 1,
+                    duration_ms=round((time.monotonic() - started) * 1000, 2),
+                    error_type=type(exc).__name__,
+                    error=str(exc),
+                    session_id=session_id,
+                )
                 if attempt >= self.settings.adk_max_retries:
                     break
+                delay = min(
+                    self.settings.adk_retry_max_delay_seconds,
+                    self.settings.adk_retry_base_delay_seconds * (2**attempt),
+                )
+                # Small jitter prevents many workers retrying the provider together.
+                delay *= 0.8 + random.random() * 0.4
                 logger.warning(
                     "ADK invocation failed; retrying",
-                    extra={"agent": name, "attempt": attempt + 1, "error": str(exc)},
+                    extra={
+                        "agent": name,
+                        "attempt": attempt + 1,
+                        "error": str(exc),
+                        "retry_delay_seconds": round(delay, 3),
+                    },
                 )
+                await asyncio.sleep(delay)
         raise AdkInvocationError(
             f"ADK agent {name!r} failed after {self.settings.adk_max_retries + 1} attempts: "
             f"{last_error}"
@@ -169,8 +224,12 @@ class AdkStructuredRuntime:
     def _parse_response(text: str, schema: type[T]) -> T:
         candidate = text.strip()
         if candidate.startswith("```"):
-            candidate = candidate.split("\n", 1)[1]
-            candidate = candidate.rsplit("```", 1)[0].strip()
+            lines = candidate.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            candidate = "\n".join(lines).strip()
         try:
             value = json.loads(candidate)
         except json.JSONDecodeError:
@@ -179,6 +238,21 @@ class AdkStructuredRuntime:
                 raise
             value = json.loads(candidate[start : end + 1])
         return schema.model_validate(value)
+
+    def _observe(self, event: str, **fields: Any) -> None:
+        payload = {"event": f"adk.{event}", **fields}
+        if self.observer is not None:
+            try:
+                self.observer(payload)
+            except Exception:
+                logger.exception("ADK observer failed")
+        logger.log(
+            logging.INFO if event == "completed" else logging.DEBUG,
+            "ADK invocation %s",
+            event,
+            # Prefix fields because ``name`` and ``msg`` are reserved LogRecord keys.
+            extra={f"adk_{key}": value for key, value in payload.items()},
+        )
 
 
 class AdkShaderAgents:
