@@ -1,8 +1,9 @@
 import { BufferAllocator } from "./profiler/buffer-allocator.js";
 import { requestDevice, type CapabilityProfile } from "./profiler/device.js";
 import { TimestampQuery } from "./profiler/query-set.js";
-import { type ValidationIssue } from "./profiler/validation-scope.js";
+import { ValidationScope, type ValidationIssue } from "./profiler/validation-scope.js";
 import { monotonicNowMs, summarizeSamples } from "./utils/time.js";
+import { validateHarnessJob } from "./validation.js";
 
 export type HarnessArtifact = {
   wgsl_code: string;
@@ -50,6 +51,10 @@ export type HarnessResult = {
   output_buffers?: Record<string, string>;
 };
 
+function failure(issues: string[], phase: string, extra: Record<string, unknown> = {}): HarnessResult {
+  return { pipeline_creation_success: false, validation_errors: issues, alignment_warnings: [], execution_time_ms: null, metadata: { phase, ...extra } };
+}
+
 function decodeData(data: number[] | string | undefined, byteLength: number): Uint8Array<ArrayBuffer> {
   if (Array.isArray(data)) {
     const values = new Float32Array(data);
@@ -69,23 +74,20 @@ function decodeData(data: number[] | string | undefined, byteLength: number): Ui
 }
 
 export async function executeInBrowser(job: HarnessJob): Promise<HarnessResult> {
-  const artifact = job.artifact;
-  const validationErrors: string[] = [];
-  if (!artifact.wgsl_code.trim()) validationErrors.push("WGSL source is empty");
-  if (!artifact.entry_point) validationErrors.push("entry_point is required");
-  if (artifact.dispatch_size.some((value) => !Number.isInteger(value) || value <= 0)) {
-    validationErrors.push("dispatch_size must contain positive integers");
-  }
-  const invocationCount = artifact.dispatch_size.reduce((a, b) => a * b, 1);
-  if (invocationCount > (job.maxDispatchInvocations ?? 16_777_216)) {
-    validationErrors.push("dispatch exceeds configured invocation budget");
-  }
+  const artifact = job?.artifact;
+  const validationErrors = validateHarnessJob(job).map((issue) => `${issue.code}: ${issue.message}`);
   if (validationErrors.length) return {
-    pipeline_creation_success: false, validation_errors: validationErrors,
-    alignment_warnings: [], execution_time_ms: null, metadata: { phase: "preflight" },
+    ...failure(validationErrors, "preflight", { diagnostic_count: validationErrors.length }),
   };
+  if (!artifact) return failure(["missing-artifact: artifact is required"], "preflight");
 
-  const { device, profile } = await requestDevice(artifact.required_features ?? []);
+  let device: GPUDevice;
+  let profile: CapabilityProfile;
+  try {
+    ({ device, profile } = await requestDevice(artifact.required_features ?? []));
+  } catch (error) {
+    return failure([error instanceof Error ? error.message : String(error)], "device-request");
+  }
   const allocator = new BufferAllocator(device, job.maxBufferBytes ?? 256 * 1024 * 1024);
   const query = TimestampQuery.create(device);
   const errors: ValidationIssue[] = [];
@@ -122,17 +124,28 @@ export async function executeInBrowser(job: HarnessJob): Promise<HarnessResult> 
     }));
     const warmups = Math.max(0, Math.floor(job.warmupIterations ?? 2));
     const measured = Math.max(1, Math.floor(job.measuredIterations ?? 10));
-    for (let i = 0; i < warmups; i++) await dispatch(device, pipeline, bindGroups, artifact.dispatch_size, null);
+    const runtimeIssues: ValidationIssue[] = [];
+    for (let i = 0; i < warmups; i++) {
+      const execution = await ValidationScope.run(device, () => dispatch(device, pipeline, bindGroups, artifact.dispatch_size, null));
+      runtimeIssues.push(...execution.issues);
+      if (execution.issues.length) throw new Error(execution.issues.map((issue) => issue.message).join("; "));
+    }
     const samples: number[] = [];
     for (let i = 0; i < measured; i++) {
       const start = monotonicNowMs();
-      await dispatch(device, pipeline, bindGroups, artifact.dispatch_size, query);
+      const execution = await ValidationScope.run(device, () => dispatch(device, pipeline, bindGroups, artifact.dispatch_size, query));
+      runtimeIssues.push(...execution.issues);
+      if (execution.issues.length) throw new Error(execution.issues.map((issue) => issue.message).join("; "));
       const elapsed = monotonicNowMs() - start;
       samples.push(elapsed);
     }
     const summary = summarizeSamples(samples);
     const output = await readOutputs(device, requests, job.outputBindings ?? []);
-    return { pipeline_creation_success: true, validation_errors: errors.map((item) => item.message), alignment_warnings: [], execution_time_ms: summary.medianMs, metadata: { phase: "execution", warmup_iterations: warmups, measured_iterations: measured, allocated_buffer_bytes: allocator.bytesAllocated, target_budget_ms: job.targetBudgetMs ?? null }, capability_profile: profile, timing: summary, timestamp_query_supported: query.supported, samples_ms: samples, output_buffers: output };
+    errors.push(...runtimeIssues);
+    return { pipeline_creation_success: errors.length === 0, validation_errors: errors.map((item) => item.message), alignment_warnings: [], execution_time_ms: summary.medianMs, metadata: { phase: "execution", warmup_iterations: warmups, measured_iterations: measured, allocated_buffer_bytes: allocator.bytesAllocated, target_budget_ms: job.targetBudgetMs ?? null, diagnostic_count: errors.length }, capability_profile: profile, timing: summary, timestamp_query_supported: query.supported, samples_ms: samples, output_buffers: output };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return result(false, [{ type: "internal", message: `execution failed: ${message}` }], profile, query.supported);
   } finally {
     query.dispose();
     allocator.dispose();

@@ -15,12 +15,13 @@ export class BufferAllocator {
 
   create(request: BufferRequest): GPUBuffer {
     if (!Number.isInteger(request.size) || request.size <= 0) throw new RangeError(`${request.label}: size must be positive`);
-    if (this.allocated + request.size > this.maxBytes) {
+    const size = Math.ceil(request.size / 4) * 4;
+    if (this.allocated + size > this.maxBytes) {
       throw new BufferBudgetExceededError(`buffer budget exceeded by ${request.label}`);
     }
     const buffer = this.device.createBuffer({
       label: request.label,
-      size: Math.ceil(request.size / 4) * 4,
+      size,
       usage: request.usage,
       ...(request.mappedAtCreation === undefined ? {} : { mappedAtCreation: request.mappedAtCreation }),
     });

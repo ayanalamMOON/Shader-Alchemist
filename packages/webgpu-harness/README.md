@@ -77,3 +77,11 @@ The harness rejects oversized dispatches and allocations before execution. It de
 query resources, and the device after each job. Timestamp queries are used when the adapter
 supports `timestamp-query`; host wall-clock samples remain available as a fallback and are
 reported as such.
+
+Jobs are validated before requesting a browser device. Validation covers WGSL entry-point
+identifiers, dispatch and buffer budgets, duplicate bindings, binding alignment, iteration
+counts, declared output bindings, and feature names. Failures are returned as structured
+diagnostic codes in `validation_errors` (for example `dispatch-budget:` or
+`duplicate-binding:`), with `metadata.phase` identifying `preflight`, `device-request`,
+`pipeline`, `execution`, or `host`. Device and dispatch failures are converted to a result and
+still run cleanup, so callers do not need to handle browser exceptions separately.

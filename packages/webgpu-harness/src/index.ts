@@ -11,6 +11,7 @@ export * from "./profiler/validation-scope.js";
 export * from "./utils/time.js";
 export * from "./correctness/comparator.js";
 export * from "./reproducibility.js";
+export * from "./validation.js";
 
 type BrowserPage = { evaluate: (fn: (job: HarnessJob) => Promise<HarnessResult>, job: HarnessJob) => Promise<HarnessResult>; close: () => Promise<void> };
 
@@ -21,19 +22,31 @@ async function run(): Promise<void> {
     process.exitCode = 2;
     return;
   }
-  const raw = input.trim().startsWith("{") ? input : await readFile(input, "utf8");
-  const job = JSON.parse(raw) as HarnessJob;
-  const page = await createBrowserPage();
+  let job: HarnessJob;
   try {
+    const raw = input.trim().startsWith("{") ? input : await readFile(input, "utf8");
+    job = JSON.parse(raw) as HarnessJob;
+  } catch (error) {
+    writeFailure("input", error);
+    process.exitCode = 2;
+    return;
+  }
+  let page: BrowserPage | undefined;
+  try {
+    page = await createBrowserPage();
     const result = await page.evaluate(executeInBrowser, job);
     process.stdout.write(`${JSON.stringify(result)}\n`);
     process.exitCode = result.pipeline_creation_success && result.validation_errors.length === 0 ? 0 : 1;
   } catch (error) {
-    process.stdout.write(`${JSON.stringify({ pipeline_creation_success: false, validation_errors: [error instanceof Error ? error.message : String(error)], alignment_warnings: [], execution_time_ms: null, metadata: { phase: "host" } })}\n`);
+    writeFailure("host", error);
     process.exitCode = 1;
   } finally {
-    await page.close();
+    if (page) await page.close();
   }
+}
+
+function writeFailure(phase: string, error: unknown): void {
+  process.stdout.write(`${JSON.stringify({ pipeline_creation_success: false, validation_errors: [error instanceof Error ? error.message : String(error)], alignment_warnings: [], execution_time_ms: null, metadata: { phase } })}\n`);
 }
 
 async function createBrowserPage(): Promise<BrowserPage> {
