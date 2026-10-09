@@ -601,7 +601,7 @@ shader-alchemist/
 ├── .env.example                      # API keys (Gemini, WebGPU flags, etc.)
 ├── pnpm-workspace.yaml               # Monorepo configuration
 ├── README.md                         # Project introduction & quickstart guide
-└── LICENSE                           # Apache 2.0 / MIT
+└── LICENSE                           # Apache-2.0
 ```
 ### Core Structural Highlights
 1. **`packages/agent-core/` (Python Ecosystem):** Houses the ADK agents, shared memory Pydantic models (`schemas/`), prompt templates, and the state-driven iteration logic (`pipeline/loop_block.py`).
