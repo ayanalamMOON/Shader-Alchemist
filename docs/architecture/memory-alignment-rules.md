@@ -61,39 +61,39 @@ All sizes and offsets below are measured in **bytes**, where one byte is eight b
 
 For a non-negative byte offset $x$ and positive alignment $a$, define:
 
-$
+$$
 \operatorname{roundUp}(a,x)=\left\lceil\frac{x}{a}\right\rceil a
-$
+$$
 
 For the power-of-two alignments used by WGSL types, an equivalent integer expression is:
 
-$
+$$
 \operatorname{roundUp}(a,x)=(x+a-1)\ \&\ \sim(a-1)
-$
+$$
 
 Use the bitwise form only when `a` is a positive power of two and the integer width cannot overflow. The ceiling form is the clearer specification-level definition.
 
 Examples:
 
-$
+$$
 \operatorname{roundUp}(4,5)=8,\quad
 \operatorname{roundUp}(16,20)=32,\quad
 \operatorname{roundUp}(16,32)=32
-$
+$$
 
 ### 2.2 Padding
 
 If the current cursor is $c$, and the next member requires alignment $a$, the next member begins at:
 
-$
+$$
 o=\operatorname{roundUp}(a,c)
-$
+$$
 
 The padding before the member is:
 
-$
+$$
 p=o-c
-$
+$$
 
 Padding bytes are part of the layout, not useful application fields. The host encoder must place each value at its calculated offset rather than serializing fields consecutively without gaps.
 
@@ -135,17 +135,17 @@ This distinction is a frequent source of host/shader mismatches. Do not universa
 
 For an array element type $T$, the baseline stride calculation is:
 
-$
+$$
 \operatorname{StrideOf}(\operatorname{array}<T>)=
 \operatorname{roundUp}(\operatorname{AlignOf}(T),\operatorname{SizeOf}(T))
-$
+$$
 
 The array's total size for a fixed element count $N$ is:
 
-$
+$$
 \operatorname{SizeOf}(\operatorname{array}<T,N>)=
 N\cdot\operatorname{StrideOf}(\operatorname{array}<T>)
-$
+$$
 
 Examples in a storage-layout context:
 
@@ -158,31 +158,31 @@ Examples in a storage-layout context:
 
 An element's payload size is not always its array stride. Indexing an array uses the stride:
 
-$
+$$
 \operatorname{address}(A[i])=\operatorname{base}(A)+i\cdot\operatorname{StrideOf}(A)
-$
+$$
 
 ### 3.3 Matrices
 
 WGSL matrices are column-major. A matrix `matCxR<T>` contains $C$ column vectors, each with $R$ components. Its memory layout follows the layout of an array of those column vectors.
 
-$
+$$
 \operatorname{AlignOf}(\operatorname{mat}_{C\times R}<T>)=
 \operatorname{AlignOf}(\operatorname{vec}_{R}<T>)
-$
+$$
 
-$
+$$
 \operatorname{Stride}_{column}=
 \operatorname{roundUp}(
 \operatorname{AlignOf}(\operatorname{vec}_{R}<T>),
 \operatorname{SizeOf}(\operatorname{vec}_{R}<T>)
 )
-$
+$$
 
-$
+$$
 \operatorname{SizeOf}(\operatorname{mat}_{C\times R}<T>)=
 C\cdot\operatorname{Stride}_{column}
-$
+$$
 
 For example, `mat3x3<f32>` has three `vec3<f32>` columns. Each column occupies a 16-byte stride, so the matrix has a 48-byte footprint, not a tightly packed 36-byte footprint.
 
@@ -204,25 +204,25 @@ For a structure with members $m_0,\ldots,m_{n-1}$, layout proceeds in declaratio
 
 For each member $m_i$ with effective alignment $a_i$ and effective size $s_i$:
 
-$
+$$
 o_i=\operatorname{roundUp}(a_i,c_i)
-$
+$$
 
-$
+$$
 c_{i+1}=o_i+s_i
-$
+$$
 
 The structure alignment is the maximum effective member alignment:
 
-$
+$$
 a_S=\max_i(a_i)
-$
+$$
 
 The final structure size is rounded up to the structure alignment:
 
-$
+$$
 \operatorname{SizeOf}(S)=\operatorname{roundUp}(a_S,c_n)
-$
+$$
 
 This describes the core recursive layout calculation. Address-space rules and member attributes can impose additional requirements; the resulting layout must then be validated for the address space where the type is used.
 
@@ -270,10 +270,10 @@ Storage buffers are commonly used for large arrays, writable data, particle stat
 
 For a member with type $T_i$, its offset must satisfy the applicable required alignment:
 
-$
+$$
 \operatorname{OffsetOfMember}(S,i)\bmod
 \operatorname{RequiredAlignOf}(T_i,\text{storage})=0
-$
+$$
 
 For an array, its stride must satisfy the corresponding element alignment requirements. The exact type's computed stride is used when indexing.
 
@@ -290,15 +290,15 @@ These are additional to the usual alignment and offset rules. They are not the s
 
 For a uniform array element $T$, under the conservative rule:
 
-$
+$$
 \operatorname{StrideOf}(\operatorname{array}<T>)\bmod16=0
-$
+$$
 
 For a nested structure member $S$ followed by a member at offset $o_j$, if the nested structure starts at $o_i$:
 
-$
+$$
 o_j-o_i\geq\operatorname{roundUp}(16,\operatorname{SizeOf}(S))
-$
+$$
 
 When the feature is enabled, use the rules in the WGSL specification for that feature rather than applying the conservative rule blindly. Record the device feature set as part of the validation evidence.
 
@@ -375,9 +375,9 @@ For a dynamic uniform-buffer offset, validate against the selected device's `min
 
 For binding offset $o$ and required device alignment $A$:
 
-$
+$$
 o\bmod A=0
-$
+$$
 
 Also validate the binding's effective range against the buffer size and the resource binding's size constraints. Do not confuse this device-level binding alignment with `AlignOf(T)` or a struct member's offset.
 
@@ -411,21 +411,21 @@ Do not assume that a Rust `struct` with `repr(C)` automatically matches every WG
 
 For every buffer field $i$:
 
-$
+$$
 \text{hostOffset}_i=\operatorname{OffsetOfMember}(S,i)
-$
+$$
 
 For every array element $j$:
 
-$
+$$
 \text{hostElementOffset}_j=\text{arrayBase}+j\cdot\operatorname{StrideOf}(A)
-$
+$$
 
 For every matrix column $k$:
 
-$
+$$
 \text{hostColumnOffset}_k=\text{matrixBase}+k\cdot\operatorname{Stride}_{column}
-$
+$$
 
 The host must encode the same scalar format, component ordering, matrix orientation, and byte offsets as the WGSL declaration. Keep this layout metadata alongside the generated artifact so that the validator and benchmark harness can independently inspect it.
 
@@ -435,17 +435,17 @@ Runtime-sized arrays are primarily useful for storage-buffer patterns. Their len
 
 For a runtime-sized array with effective accessible range $B$, fixed prefix size $P$, and element stride $S$, a simplified upper-bound calculation is:
 
-$
+$$
 N=\left\lfloor\frac{B-P}{S}\right\rfloor
-$
+$$
 
 Use the actual WGSL type layout and binding range in the implementation; this equation is a planning aid, not a replacement for the WebGPU specification's buffer-binding validation rules.
 
 Every shader index must be checked against the logical element count. A correctly aligned address can still be out of bounds. When dispatch dimensions are rounded up to workgroup sizes, the final partial workgroup must guard accesses:
 
-$
+$$
 \text{if } i<N \text{ then access buffer}[i]
-$
+$$
 
 Do not infer that a buffer is safe merely because its byte length is divisible by a type's alignment.
 
@@ -556,21 +556,21 @@ Alignment exists to satisfy language and hardware requirements and can also supp
 
 For $N$ elements with stride $S$, the total allocation for the array payload is:
 
-$
+$$
 B=N\cdot S
-$
+$$
 
 If a compact representation uses stride $S_c$ and a padded representation uses stride $S_p$, the extra storage is:
 
-$
+$$
 \Delta B=N(S_p-S_c)
-$
+$$
 
 and the relative increase over the compact representation is:
 
-$
+$$
 \text{overhead}=\frac{S_p-S_c}{S_c}\times100\%
-$
+$$
 
 Use these equations only when both strides are valid for the same semantic representation and address-space rules. Never remove required padding to reduce bandwidth. Instead, choose a valid type/address-space design and measure it on the target device.
 
