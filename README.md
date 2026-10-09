@@ -1,5 +1,13 @@
 # ⚗️ Shader Alchemist
 
+<p align="center">
+  <img
+    src="assets/shader-alchemist-readme-animation.gif"
+    alt="Shader Alchemist agentic WebGPU shader engineering workflow"
+    width="960"
+  />
+</p>
+
 > **A Google Agent Development Kit (ADK) project for evidence-driven generation and optimization
 > of verified WebGPU compute shaders.**
 
