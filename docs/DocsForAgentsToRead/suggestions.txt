@@ -1,0 +1,10 @@
+Actual Gemini/ADK agent invocation.
+Full WebGPU harness integration.
+WGSL compiler validation through Tint or Naga.
+Numerical differential testing against CPU reference implementations.
+Benchmark database and device-specific autotuning.
+Reduction, scan, histogram, tiled matrix, and simulation kernels.
+Persistent performance history.
+Adversarial shader safety checks.
+Multi-candidate generation and selection.
+Cross-device optimization and regression tracking.

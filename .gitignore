@@ -1,0 +1,60 @@
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+
+# Python environments, caches, and build output
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Node.js and TypeScript dependencies/build output
+node_modules/
+packages/*/dist/
+packages/*/coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated Shader Alchemist artifacts and benchmark evidence
+ShaderAlchemistOutput/
+artifacts/
+benchmark-results/
+reports/
+*.trace.json
+*.profile.json
+*.wgsl.map
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# Local test-runner output
+.pytest_cache/

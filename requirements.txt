@@ -1,0 +1,16 @@
+# Shader Alchemist agent runtime
+# Google Agent Development Kit (ADK) and model/tool integration
+google-adk
+google-genai
+
+# Typed shared state and validated agent contracts
+pydantic>=2.0
+
+# Agent prompt and artifact templates
+Jinja2>=3.1
+
+# Local environment configuration
+python-dotenv>=1.0
+
+# Development and test tooling
+pytest>=8.0

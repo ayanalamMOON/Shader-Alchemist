@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shader Alchemist WebGPU Harness</title></head>
+<body>
+<script type="module">
+  globalThis.runShaderAlchemistJob = async (job) => {
+    if (!globalThis.navigator?.gpu) throw new Error("WebGPU is unavailable");
+    return { status: "ready", userAgent: navigator.userAgent, job };
+  };
+</script>
+</body>
+</html>
