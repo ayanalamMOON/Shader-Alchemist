@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python agent core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/agent-core/pyproject.toml
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/agent-core pytest
+      - name: Compile Python modules
+        run: python -m compileall -q packages/agent-core/src/shader_alchemist
+      - name: Run Python tests
+        run: python -m pytest packages/agent-core/src/tests -q
+
+  webgpu-harness:
+    name: TypeScript harness
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/webgpu-harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/webgpu-harness/package.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Type-check and build
+        run: npm run build
+      - name: Run harness unit tests
+        run: npm test
